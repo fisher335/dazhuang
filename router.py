@@ -4,6 +4,7 @@
 from main import app
 from bottle import request, template, redirect, HTTPResponse
 import qrcode
+import os,time
 
 
 @app.route("/test/")

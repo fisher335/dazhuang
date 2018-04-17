@@ -25,7 +25,8 @@ __license__ = 'MIT'
 # INFO: Some server adapters need to monkey-patch std-lib modules before they
 # are imported. This is why some of the command-line handling is done here, but
 # the actual call to _main() is at the end of the file.
-from gevent import  monkey;monkey.patch_all()
+
+from gevent import monkey;monkey.patch_all()
 
 def _cli_parse(args):  # pragma: no coverage
     from argparse import ArgumentParser
@@ -128,7 +129,7 @@ if py3k:
     from urllib.parse import urljoin, SplitResult as UrlSplitResult
     from urllib.parse import urlencode, quote as urlquote, unquote as urlunquote
     urlunquote = functools.partial(urlunquote, encoding='latin1')
-    from http.cookies import SimpleCookie
+    from http.cookies import SimpleCookie, Morsel, CookieError
     from collections import MutableMapping as DictMixin
     import pickle
     from io import BytesIO
@@ -147,7 +148,7 @@ else:  # 2.x
     import thread
     from urlparse import urljoin, SplitResult as UrlSplitResult
     from urllib import urlencode, quote as urlquote, unquote as urlunquote
-    from Cookie import SimpleCookie
+    from Cookie import SimpleCookie, Morsel, CookieError
     from itertools import imap
     import cPickle as pickle
     from StringIO import StringIO as BytesIO
@@ -161,7 +162,7 @@ else:  # 2.x
 def tob(s, enc='utf8'):
     if isinstance(s, unicode):
         return s.encode(enc)
-    return bytes("" if s is None else s)
+    return b'' if s is None else bytes(s)
 
 
 def touni(s, enc='utf8', err='strict'):
@@ -494,7 +495,7 @@ class Router(object):
         nocheck = set(methods)
         for method in set(self.static) - nocheck:
             if path in self.static[method]:
-                allowed.add(verb)
+                allowed.add(method)
         for method in set(self.dyna_regexes) - allowed - nocheck:
             for combined, rules in self.dyna_regexes[method]:
                 match = combined(path)
@@ -645,7 +646,7 @@ class Bottle(object):
         })
 
         if kwargs.get('catchall') is False:
-            depr(0,13, "Bottle(catchall) keyword argument.",
+            depr(0, 13, "Bottle(catchall) keyword argument.",
                         "The 'catchall' setting is now part of the app "
                         "configuration. Fix: `app.config['catchall'] = False`")
             self.config['catchall'] = False
@@ -965,12 +966,12 @@ class Bottle(object):
                     return 'error_handler_404'
 
         """
-        
+
         def decorator(callback):
             if isinstance(callback, basestring): callback = load(callback)
             self.error_handler[int(code)] = callback
             return callback
-        
+
         return decorator(callback) if callback else decorator
 
     def default_error_handler(self, res):
@@ -1603,11 +1604,13 @@ def _hkey(key):
         raise ValueError("Header names must not contain control characters: %r" % key)
     return key.title().replace('_', '-')
 
+
 def _hval(value):
     value = tonat(value)
     if '\n' in value or '\r' in value or '\0' in value:
         raise ValueError("Header value must not contain control characters: %r" % value)
     return value
+
 
 class HeaderProperty(object):
     def __init__(self, name, reader=None, writer=None, default=''):
@@ -1813,6 +1816,10 @@ class BaseResponse(object):
             :param secure: limit the cookie to HTTPS connections (default: off).
             :param httponly: prevents client-side javascript to read this cookie
               (default: off, requires Python 2.6 or newer).
+            :param same_site: disables third-party use for a cookie.
+              Allowed attributes: `lax` and `strict`.
+              In strict mode the cookie will never be sent.
+              In lax mode the cookie is only sent with a top-level GET request.
 
             If neither `expires` nor `max_age` is set (default), the cookie will
             expire at the end of the browser session (as soon as the browser
@@ -1834,6 +1841,9 @@ class BaseResponse(object):
         """
         if not self._cookies:
             self._cookies = SimpleCookie()
+
+        # To add "SameSite" cookie support.
+        Morsel._reserved['same-site'] = 'SameSite'
 
         if secret:
             if not isinstance(value, basestring):
@@ -1863,6 +1873,9 @@ class BaseResponse(object):
                 elif isinstance(value, (int, float)):
                     value = time.gmtime(value)
                 value = time.strftime("%a, %d %b %Y %H:%M:%S GMT", value)
+            # check values for SameSite cookie, because it's not natively supported by http.cookies.
+            if key == 'same_site' and value.lower() not in ('lax', 'strict'):
+                raise CookieError("Invalid attribute %r" % (key,))
             if key in ('secure', 'httponly') and not value:
                 continue
             self._cookies[name][key.replace('_', '-')] = value
@@ -2367,7 +2380,7 @@ class ConfigDict(dict):
             Leading and trailing whitespace is removed from keys and values.
             Values can be omitted, in which case the key/value delimiter may
             also be left out. Values can also span multiple lines, as long as
-            they are indented deeper than the first line of the value. Commends
+            they are indented deeper than the first line of the value. Commands
             are prefixed by ``#`` or ``;`` and may only appear on their own on
             an otherwise empty line.
 
@@ -2798,14 +2811,18 @@ def redirect(url, code=None):
     raise res
 
 
-def _file_iter_range(fp, offset, bytes, maxread=1024 * 1024):
-    """ Yield chunks from a range in a file. No chunk is bigger than maxread."""
+def _file_iter_range(fp, offset, bytes, maxread=1024 * 1024, close=False):
+    """ Yield chunks from a range in a file, optionally closing it at the end.
+        No chunk is bigger than maxread. """
     fp.seek(offset)
     while bytes > 0:
         part = fp.read(min(bytes, maxread))
-        if not part: break
+        if not part:
+            break
         bytes -= len(part)
         yield part
+    if close:
+        fp.close()
 
 
 def static_file(filename, root,
@@ -2874,9 +2891,9 @@ def static_file(filename, root,
 
     stats = os.stat(filename)
     headers['Content-Length'] = clen = stats.st_size
-    lm = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime(stats.st_mtime))
-    headers['Last-Modified'] = lm
-    headers['Date'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
+    headers['Last-Modified'] = email.utils.formatdate(stats.st_mtime,
+                                                      usegmt=True)
+    headers['Date'] = email.utils.formatdate(time.time(), usegmt=True)
 
     getenv = request.environ.get
 
@@ -2908,7 +2925,7 @@ def static_file(filename, root,
         offset, end = ranges[0]
         headers["Content-Range"] = "bytes %d-%d/%d" % (offset, end - 1, clen)
         headers["Content-Length"] = str(end - offset)
-        if body: body = _file_iter_range(body, offset, end - offset)
+        if body: body = _file_iter_range(body, offset, end - offset, close=True)
         return HTTPResponse(body, status=206, **headers)
     return HTTPResponse(body, **headers)
 

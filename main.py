@@ -15,7 +15,7 @@ def static_files(filename):
     return static_file(filename=filename, root=abs_path)
 
 
-@app.route('/favicon.ico/')
+@app.route('/favicon.ico')
 def static_files_icon():
     return static_file(filename='favicon.ico', root=abs_path)
 

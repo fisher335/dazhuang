@@ -2,7 +2,7 @@
 # @Date    : '2018/4/16 0016'
 # @Author  : Terry feng  (fengshaomin@qq.com)
 from main import app
-from bottle import request, template, redirect, HTTPResponse
+from bottle import request, template, redirect
 import qrcode
 import os,time
 
@@ -32,7 +32,7 @@ def index():
 
 
 @app.post('/qrcode/')
-@app.route('/qrcode/<img:int>', method=['GET', 'POST'])
+@app.route('/qrcode/<img>', method=['GET', 'POST'])
 def qrcodelike(img=None):
     if img == "":
         template("index")

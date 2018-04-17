@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # coding:utf-8
-from bottle import Bottle, request, static_file, template, redirect, HTTPResponse
-import os, time
+from bottle import Bottle, request, static_file
+import os
 
 app = Bottle()
-from router import *
 
 abs_path = os.path.abspath('./static')
+from router import *
 
 
 # static_root = 'C:\mini\static'
@@ -20,6 +20,10 @@ def static_files_icon():
     return static_file(filename='favicon.ico', root=abs_path)
 
 
+@app.route('/download/<img>')
+def static_files_icon(img):
+    return static_file(filename=img, root=os.path.join(abs_path, 'qrcode'), download=True)
+
+
 if __name__ == '__main__':
-    # app.run(host='0.0.0.0', port=8000, debug=True, reloader=True)
     app.run(port=8080, debug=True, reloader=True, server="gevent")

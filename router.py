@@ -4,13 +4,19 @@
 from main import app
 from bottle import request, template, redirect
 import qrcode
-import os,time
-from random import  randint
+import os, time
+from random import randint
+
 
 @app.route("/test/")
 def test():
     print("7777")
     return "hello test"
+
+
+@app.route("/file/")
+def test():
+    return template("file")
 
 
 @app.get('/list/')
@@ -40,7 +46,7 @@ def qrcodelike(img=None):
     print(url.encode("utf-8"))
     # img_name = url.replace("/", "")
     # img_name = img_name.replace(":", "")
-    img_name = randint(1,1000000)
+    img_name = randint(1, 1000000)
     imge = qrcode.make(url)
     imge.save(os.path.join("static/qrcode", str(img_name) + ".png"))
     return template('qrcode', img=img_name)

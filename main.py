@@ -2,8 +2,7 @@
 # coding:utf-8
 from bottle import Bottle, request, static_file
 import os
-import io
-import sys
+
 app = Bottle()
 
 abs_path = os.path.abspath('./static')
@@ -33,8 +32,7 @@ if __name__ == '__main__':
         app.run(port=8080, debug=True, reloader=True, server="gevent")
     elif flag == 2:
         app.run(port=8080, debug=False, reloader=False, server="gevent")
-    elif flag ==3 :
+    elif flag == 3:
         app.run(port=80, debug=True, reloader=True, server="gevent", host="0.0.0.0")
     else:
         app.run(port=80, debug=False, reloader=False, server="gevent", host="0.0.0.0")
-

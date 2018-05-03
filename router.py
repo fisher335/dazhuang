@@ -7,6 +7,7 @@ import qrcode
 import os, time
 from random import randint
 
+from main import abs_path
 
 @app.route("/test/")
 def test():
@@ -50,3 +51,27 @@ def qrcodelike(img=None):
     imge = qrcode.make(url)
     imge.save(os.path.join("static/qrcode", str(img_name) + ".png"))
     return template('qrcode', img=img_name)
+
+
+@app.get('/upload/')
+def upload():
+    return template('upload')
+
+
+@app.post('/upload/')
+def upload():
+    result = request.files
+    file = result.get('file')
+    file_name = file.filename
+    print(file_name)
+    file.save(os.path.join(abs_path, 'videos'), overwrite=True)
+    return redirect('/file/')
+
+
+@app.get('/file/')
+def update():
+    li_file = []
+    for path, dir, file in os.walk(os.path.join(abs_path, 'videos')):
+        for i in file:
+            li_file.append(i)
+    return template('file', files=li_file)
